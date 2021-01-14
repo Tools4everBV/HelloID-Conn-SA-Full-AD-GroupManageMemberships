@@ -304,7 +304,7 @@ $tmpInput = @'
 
 '@ 
 $dataSourceGuid_1 = [PSCustomObject]@{} 
-Invoke-HelloIDDatasource -DatasourceName "AD-user-generate-table-samaccountname" -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript -$tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_1) 
+Invoke-HelloIDDatasource -DatasourceName "AD-user-generate-table-samaccountname" -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_1) 
 <# End: DataSource "AD-user-generate-table-samaccountname" #>
 
 <# Begin: DataSource "AD-group-generate-table-members" #>
@@ -347,7 +347,7 @@ $tmpInput = @'
 {"description":null,"translateDescription":false,"inputFieldType":1,"key":"selectedGroup","type":0,"options":1}
 '@ 
 $dataSourceGuid_2 = [PSCustomObject]@{} 
-Invoke-HelloIDDatasource -DatasourceName "AD-group-generate-table-members" -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript -$tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_2) 
+Invoke-HelloIDDatasource -DatasourceName "AD-group-generate-table-members" -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_2) 
 <# End: DataSource "AD-group-generate-table-members" #>
 
 <# Begin: DataSource "AD-group-generate-table-wildcard" #>
@@ -393,7 +393,7 @@ $tmpInput = @'
 {"description":null,"translateDescription":false,"inputFieldType":1,"key":"searchValue","type":0,"options":1}
 '@ 
 $dataSourceGuid_0 = [PSCustomObject]@{} 
-Invoke-HelloIDDatasource -DatasourceName "AD-group-generate-table-wildcard" -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript -$tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_0) 
+Invoke-HelloIDDatasource -DatasourceName "AD-group-generate-table-wildcard" -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_0) 
 <# End: DataSource "AD-group-generate-table-wildcard" #>
 <# End: HelloID Data sources #>
 
