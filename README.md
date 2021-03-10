@@ -36,13 +36,13 @@ After the all-in-one PowerShell script has run and created all the required reso
 ## Manual resources
 This Delegated Form uses the following resources in order to run
 
-### Powershell data source 'AD-group-generate-table-wildcard'
+### Powershell data source 'AD-group-generate-table-wildcard-manage-memberships'
 This Powershell data source runs an Active Directory query to search for matching AD groups. It uses an array of Active Directory OU's specified as HelloID user defined variable named _"ADgroupsSearchOU"_ to specify the search scope.
 
-### Powershell data source 'AD-group-generate-table-members'
+### Powershell data source 'AD-group-generate-table-members-manage-memberships'
 This Powershell data source runs an Active Directory query to receive the current group members.
 
-### Powershell data source 'AD-user-generate-table-samaccountname'
+### Powershell data source 'AD-user-generate-table-samaccountname-manage-memberships'
 This Powershell data source runs an Active Directory query to receive selectable AD user accounts. It uses an array of Active Directory OU's specified as HelloID user defined variable named _"ADgroupsSearchOU"_ to specify the search scope.
 
 ### Delegated form task 'AD-group-update-members'
