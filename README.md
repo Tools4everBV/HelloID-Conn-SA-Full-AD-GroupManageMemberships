@@ -47,3 +47,6 @@ This Powershell data source runs an Active Directory query to receive selectable
 
 ### Delegated form task 'AD-group-update-members'
 This delegated form task will update the AD group members.
+
+# HelloID Docs
+The official HelloID documentation can be found at: https://docs.helloid.com/
