@@ -4,7 +4,13 @@ This HelloID Service Automation Delegated Form provides AD group membership mana
  1. Search and select the target AD group
  3. Modify AD group memberships
  5. After confirmation the updates are processed (add or remove AD account memberships)
- 
+
+## Versioning
+| Version | Description | Date |
+| - | - | - |
+| 1.0.1   | Added version number and updated all-in-one script | 2021/11/03  |
+| 1.0.0   | Initial release | 2020/09/07  |
+
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
 * [Description](#description)
@@ -12,6 +18,7 @@ This HelloID Service Automation Delegated Form provides AD group membership mana
   * [Getting started](#getting-started)
 * [Post-setup configuration](#post-setup-configuration)
 * [Manual resources](#manual-resources)
+* [Getting help](#getting-help)
 
 
 ## All-in-one PowerShell setup script
@@ -48,5 +55,8 @@ This Powershell data source runs an Active Directory query to receive selectable
 ### Delegated form task 'AD-group-update-members'
 This delegated form task will update the AD group members.
 
-# HelloID Docs
+## Getting help
+_If you need help, feel free to ask questions on our [forum](https://forum.helloid.com/forum/helloid-connectors/service-automation/496-helloid-sa-active-directory-ad-group-manage-memberships)_
+
+## HelloID Docs
 The official HelloID documentation can be found at: https://docs.helloid.com/
