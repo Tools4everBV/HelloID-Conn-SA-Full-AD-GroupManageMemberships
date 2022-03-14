@@ -6,7 +6,7 @@ $portalUrl = "https://CUSTOMER.helloid.com"
 $apiKey = "API_KEY"
 $apiSecret = "API_SECRET"
 $delegatedFormAccessGroupNames = @("Users") #Only unique names are supported. Groups must exist!
-$delegatedFormCategories = @("Active Directory","Group Management") #Only unique names are supported. Categories will be created if not exists
+$delegatedFormCategories = @("Group Management","Active Directory") #Only unique names are supported. Categories will be created if not exists
 $script:debugLogging = $false #Default value: $false. If $true, the HelloID resource GUIDs will be shown in the logging
 $script:duplicateForm = $false #Default value: $false. If $true, the HelloID resource names will be changed to import a duplicate Form
 $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID resource names to generate a duplicate form with different resource names
@@ -15,21 +15,21 @@ $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID re
 #NOTE: You can also update the HelloID Global variable values afterwards in the HelloID Admin Portal: https://<CUSTOMER>.helloid.com/admin/variablelibrary
 $globalHelloIDVariables = [System.Collections.Generic.List[object]]@();
 
-#Global variable #1 >> ADusersSearchOU
-$tmpName = @'
-ADusersSearchOU
-'@ 
-$tmpValue = @'
-[{ "OU": "OU=Disabled Users,OU=HelloID Training,DC=veeken,DC=local"},{ "OU": "OU=Users,OU=HelloID Training,DC=veeken,DC=local"},{"OU": "OU=External,OU=HelloID Training,DC=veeken,DC=local"}]
-'@ 
-$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
-
-#Global variable #2 >> ADgroupsSearchOU
+#Global variable #1 >> ADgroupsSearchOU
 $tmpName = @'
 ADgroupsSearchOU
 '@ 
 $tmpValue = @'
-[{ "OU": "OU=Groups,OU=HelloID Training,DC=veeken,DC=local"}]
+[{ "OU": "OU=Groups,OU=Resources,DC=schoulens,DC=nl"}]
+'@ 
+$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
+
+#Global variable #2 >> ADusersSearchOU
+$tmpName = @'
+ADusersSearchOU
+'@ 
+$tmpValue = @'
+[{ "OU": "OU=Disabled Users,OU=Users,OU=Resources,DC=schoulens,DC=nl"},{ "OU": "OU=Users,OU=Resources,DC=schoulens,DC=nl"}]
 '@ 
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
@@ -57,10 +57,8 @@ if (-not [string]::IsNullOrEmpty($portalBaseUrl)) {
     $script:PortalBaseUrl = $portalUrl
     Write-Information "Using manual PortalURL: $script:PortalBaseUrl"
 }
-
 # Define specific endpoint URI
 $script:PortalBaseUrl = $script:PortalBaseUrl.trim("/") + "/"  
-
 # Make sure to reveive an empty array using PowerShell Core
 function ConvertFrom-Json-WithEmptyArray([string]$jsonString) {
     # Running in PowerShell Core?
@@ -72,16 +70,13 @@ function ConvertFrom-Json-WithEmptyArray([string]$jsonString) {
         return ,$r  # Force return value to be an array using a comma
     }
 }
-
 function Invoke-HelloIDGlobalVariable {
     param(
         [parameter(Mandatory)][String]$Name,
         [parameter(Mandatory)][String][AllowEmptyString()]$Value,
         [parameter(Mandatory)][String]$Secret
     )
-
     $Name = $Name + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
-
     try {
         $uri = ($script:PortalBaseUrl + "api/v1/automation/variables/named/$Name")
         $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
@@ -99,7 +94,6 @@ function Invoke-HelloIDGlobalVariable {
             $uri = ($script:PortalBaseUrl + "api/v1/automation/variable")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
             $variableGuid = $response.automationVariableGuid
-
             Write-Information "Variable '$Name' created$(if ($script:debugLogging -eq $true) { ": " + $variableGuid })"
         } else {
             $variableGuid = $response.automationVariableGuid
@@ -109,7 +103,6 @@ function Invoke-HelloIDGlobalVariable {
         Write-Error "Variable '$Name', message: $_"
     }
 }
-
 function Invoke-HelloIDAutomationTask {
     param(
         [parameter(Mandatory)][String]$TaskName,
@@ -123,7 +116,6 @@ function Invoke-HelloIDAutomationTask {
     )
     
     $TaskName = $TaskName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
-
     try {
         $uri = ($script:PortalBaseUrl +"api/v1/automationtasks?search=$TaskName&container=$AutomationContainer")
         $responseRaw = (Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false) 
@@ -131,7 +123,6 @@ function Invoke-HelloIDAutomationTask {
     
         if([string]::IsNullOrEmpty($response.automationTaskGuid) -or $ForceCreateTask -eq $true) {
             #Create Task
-
             $body = @{
                 name                = $TaskName;
                 useTemplate         = $UseTemplate;
@@ -145,7 +136,6 @@ function Invoke-HelloIDAutomationTask {
             $uri = ($script:PortalBaseUrl +"api/v1/automationtasks/powershell")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
             $taskGuid = $response.automationTaskGuid
-
             Write-Information "Powershell task '$TaskName' created$(if ($script:debugLogging -eq $true) { ": " + $taskGuid })"
         } else {
             #Get TaskGUID
@@ -155,10 +145,8 @@ function Invoke-HelloIDAutomationTask {
     } catch {
         Write-Error "Powershell task '$TaskName', message: $_"
     }
-
     $returnObject.Value = $taskGuid
 }
-
 function Invoke-HelloIDDatasource {
     param(
         [parameter(Mandatory)][String]$DatasourceName,
@@ -170,9 +158,7 @@ function Invoke-HelloIDDatasource {
         [parameter()][String][AllowEmptyString()]$AutomationTaskGuid,
         [parameter(Mandatory)][Ref]$returnObject
     )
-
     $DatasourceName = $DatasourceName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
-
     $datasourceTypeName = switch($DatasourceType) { 
         "1" { "Native data source"; break} 
         "2" { "Static data source"; break} 
@@ -210,10 +196,8 @@ function Invoke-HelloIDDatasource {
     } catch {
       Write-Error "$datasourceTypeName '$DatasourceName', message: $_"
     }
-
     $returnObject.Value = $datasourceGuid
 }
-
 function Invoke-HelloIDDynamicForm {
     param(
         [parameter(Mandatory)][String]$FormName,
@@ -222,7 +206,6 @@ function Invoke-HelloIDDynamicForm {
     )
     
     $FormName = $FormName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
-
     try {
         try {
             $uri = ($script:PortalBaseUrl +"api/v1/forms/$FormName")
@@ -251,11 +234,8 @@ function Invoke-HelloIDDynamicForm {
     } catch {
         Write-Error "Dynamic form '$FormName', message: $_"
     }
-
     $returnObject.Value = $formGuid
 }
-
-
 function Invoke-HelloIDDelegatedForm {
     param(
         [parameter(Mandatory)][String]$DelegatedFormName,
@@ -264,11 +244,11 @@ function Invoke-HelloIDDelegatedForm {
         [parameter()][String][AllowEmptyString()]$Categories,
         [parameter(Mandatory)][String]$UseFaIcon,
         [parameter()][String][AllowEmptyString()]$FaIcon,
+        [parameter()][String][AllowEmptyString()]$task,
         [parameter(Mandatory)][Ref]$returnObject
     )
     $delegatedFormCreated = $false
     $DelegatedFormName = $DelegatedFormName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
-
     try {
         try {
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms/$DelegatedFormName")
@@ -286,6 +266,7 @@ function Invoke-HelloIDDelegatedForm {
                 accessGroups    = (ConvertFrom-Json-WithEmptyArray($AccessGroups));
                 useFaIcon       = $UseFaIcon;
                 faIcon          = $FaIcon;
+                task            = ConvertFrom-Json -inputObject $task;
             }    
             $body = ConvertTo-Json -InputObject $body
     
@@ -295,7 +276,6 @@ function Invoke-HelloIDDelegatedForm {
             $delegatedFormGuid = $response.delegatedFormGUID
             Write-Information "Delegated form '$DelegatedFormName' created$(if ($script:debugLogging -eq $true) { ": " + $delegatedFormGuid })"
             $delegatedFormCreated = $true
-
             $bodyCategories = $Categories
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms/$delegatedFormGuid/categories")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $bodyCategories
@@ -308,10 +288,10 @@ function Invoke-HelloIDDelegatedForm {
     } catch {
         Write-Error "Delegated form '$DelegatedFormName', message: $_"
     }
-
     $returnObject.value.guid = $delegatedFormGuid
     $returnObject.value.created = $delegatedFormCreated
 }
+
 <# Begin: HelloID Global Variables #>
 foreach ($item in $globalHelloIDVariables) {
 	Invoke-HelloIDGlobalVariable -Name $item.name -Value $item.value -Secret $item.secret 
@@ -320,46 +300,6 @@ foreach ($item in $globalHelloIDVariables) {
 
 
 <# Begin: HelloID Data sources #>
-<# Begin: DataSource "AD-user-generate-table-samaccountname-manage-memberships" #>
-$tmpPsScript = @'
-try {
-    $ous = $ADusersSearchOU | ConvertFrom-Json
-    $users = foreach($item in $ous) {
-        Get-ADUser -Filter {Name -like "*"} -SearchBase $item.ou -properties displayName, sAMAccountName
-    }
-    
-    $users = $users | Sort-Object -Property DisplayName
-    $resultCount = @($users).Count
-    Write-information "Result count: $resultCount"
-    
-if($resultCount -gt 0){
-        foreach($user in $users){
-            $displayValue = $user.displayName + " [" + $user.sAMAccountName + "]"
-            $returnObject = @{sAMAccountName=$user.sAMAccountName; name=$displayValue}
-    
-            Write-output $returnObject
-        }
-    } else {
-        return
-    }
-} catch {
-    Write-error "Error searching AD users. Error: $($_.Exception.Message)"
-    return
-}
-'@ 
-$tmpModel = @'
-[{"key":"sAMAccountName","type":0},{"key":"name","type":0}]
-'@ 
-$tmpInput = @'
-[]
-'@ 
-$dataSourceGuid_1 = [PSCustomObject]@{} 
-$dataSourceGuid_1_Name = @'
-AD-user-generate-table-samaccountname-manage-memberships
-'@ 
-Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_1_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_1) 
-<# End: DataSource "AD-user-generate-table-samaccountname-manage-memberships" #>
-
 <# Begin: DataSource "AD-group-generate-table-members-manage-memberships" #>
 $tmpPsScript = @'
 try {
@@ -443,7 +383,7 @@ try {
 
 '@ 
 $tmpModel = @'
-[{"key":"description","type":0},{"key":"name","type":0}]
+[{"key":"name","type":0},{"key":"description","type":0}]
 '@ 
 $tmpInput = @'
 [{"description":null,"translateDescription":false,"inputFieldType":1,"key":"searchValue","type":0,"options":1}]
@@ -454,11 +394,51 @@ AD-group-generate-table-wildcard-manage-memberships
 '@ 
 Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_0_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_0) 
 <# End: DataSource "AD-group-generate-table-wildcard-manage-memberships" #>
+
+<# Begin: DataSource "AD-user-generate-table-samaccountname-manage-memberships" #>
+$tmpPsScript = @'
+try {
+    $ous = $ADusersSearchOU | ConvertFrom-Json
+    $users = foreach($item in $ous) {
+        Get-ADUser -Filter {Name -like "*"} -SearchBase $item.ou -properties displayName, sAMAccountName
+    }
+    
+    $users = $users | Sort-Object -Property DisplayName
+    $resultCount = @($users).Count
+    Write-information "Result count: $resultCount"
+    
+if($resultCount -gt 0){
+        foreach($user in $users){
+            $displayValue = $user.displayName + " [" + $user.sAMAccountName + "]"
+            $returnObject = @{sAMAccountName=$user.sAMAccountName; name=$displayValue}
+    
+            Write-output $returnObject
+        }
+    } else {
+        return
+    }
+} catch {
+    Write-error "Error searching AD users. Error: $($_.Exception.Message)"
+    return
+}
+'@ 
+$tmpModel = @'
+[{"key":"sAMAccountName","type":0},{"key":"name","type":0}]
+'@ 
+$tmpInput = @'
+[]
+'@ 
+$dataSourceGuid_1 = [PSCustomObject]@{} 
+$dataSourceGuid_1_Name = @'
+AD-user-generate-table-samaccountname-manage-memberships
+'@ 
+Invoke-HelloIDDatasource -DatasourceName $dataSourceGuid_1_Name -DatasourceType "4" -DatasourceInput $tmpInput -DatasourcePsScript $tmpPsScript -DatasourceModel $tmpModel -returnObject ([Ref]$dataSourceGuid_1) 
+<# End: DataSource "AD-user-generate-table-samaccountname-manage-memberships" #>
 <# End: HelloID Data sources #>
 
 <# Begin: Dynamic Form "AD Group - Manage memberships" #>
 $tmpSchema = @"
-[{"label":"Select group","fields":[{"key":"searchfield","templateOptions":{"label":"Search","placeholder":""},"type":"input","summaryVisibility":"Hide element","requiresTemplateOptions":true},{"key":"gridGroups","templateOptions":{"label":"Select group","required":true,"grid":{"columns":[{"headerName":"Name","field":"name"},{"headerName":"Description","field":"description"}],"height":300,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_0","input":{"propertyInputs":[{"propertyName":"searchValue","otherFieldValue":{"otherFieldKey":"searchfield"}}]}},"useFilter":false},"type":"grid","summaryVisibility":"Show","requiresTemplateOptions":true}]},{"label":"Members","fields":[{"key":"members","templateOptions":{"label":"Manage group memberships","required":false,"filterable":true,"useDataSource":true,"dualList":{"options":[{"guid":"75ea2890-88f8-4851-b202-626123054e14","Name":"Apple"},{"guid":"0607270d-83e2-4574-9894-0b70011b663f","Name":"Pear"},{"guid":"1ef6fe01-3095-4614-a6db-7c8cd416ae3b","Name":"Orange"}],"optionKeyProperty":"sAMAccountName","optionDisplayProperty":"name","labelLeft":"Available","labelRight":"Member of"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_1","input":{"propertyInputs":[]}},"destinationDataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_2","input":{"propertyInputs":[{"propertyName":"selectedGroup","otherFieldValue":{"otherFieldKey":"gridGroups"}}]}},"useFilter":false},"type":"duallist","summaryVisibility":"Show","requiresTemplateOptions":true}]}]
+[{"label":"Select group","fields":[{"key":"searchfield","templateOptions":{"label":"Search","placeholder":""},"type":"input","summaryVisibility":"Hide element","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false},{"key":"gridGroups","templateOptions":{"label":"Select group","required":true,"grid":{"columns":[{"headerName":"Name","field":"name"},{"headerName":"Description","field":"description"}],"height":300,"rowSelection":"single"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_0","input":{"propertyInputs":[{"propertyName":"searchValue","otherFieldValue":{"otherFieldKey":"searchfield"}}]}},"useFilter":false},"type":"grid","summaryVisibility":"Show","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":true}]},{"label":"Members","fields":[{"key":"members","templateOptions":{"label":"Manage group memberships","required":false,"filterable":true,"useDataSource":true,"dualList":{"options":[{"guid":"75ea2890-88f8-4851-b202-626123054e14","Name":"Apple"},{"guid":"0607270d-83e2-4574-9894-0b70011b663f","Name":"Pear"},{"guid":"1ef6fe01-3095-4614-a6db-7c8cd416ae3b","Name":"Orange"}],"optionKeyProperty":"sAMAccountName","optionDisplayProperty":"name","labelLeft":"Available","labelRight":"Member of"},"dataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_1","input":{"propertyInputs":[]}},"destinationDataSourceConfig":{"dataSourceGuid":"$dataSourceGuid_2","input":{"propertyInputs":[{"propertyName":"selectedGroup","otherFieldValue":{"otherFieldKey":"gridGroups"}}]}},"useFilter":false},"type":"duallist","summaryVisibility":"Show","sourceDataSourceIdentifierSuffix":"source-datasource","destinationDataSourceIdentifierSuffix":"destination-datasource","requiresTemplateOptions":true,"requiresKey":true,"requiresDataSource":false}]}]
 "@ 
 
 $dynamicFormGuid = [PSCustomObject]@{} 
@@ -483,7 +463,6 @@ foreach($group in $delegatedFormAccessGroupNames) {
     }
 }
 $delegatedFormAccessGroupGuids = ($delegatedFormAccessGroupGuids | Select-Object -Unique | ConvertTo-Json -Compress)
-
 $delegatedFormCategoryGuids = @()
 foreach($category in $delegatedFormCategories) {
     try {
@@ -499,12 +478,10 @@ foreach($category in $delegatedFormCategories) {
             name = @{"en" = $category};
         }
         $body = ConvertTo-Json -InputObject $body
-
         $uri = ($script:PortalBaseUrl +"api/v1/delegatedformcategories")
         $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
         $tmpGuid = $response.delegatedFormCategoryGuid
         $delegatedFormCategoryGuids += $tmpGuid
-
         Write-Information "HelloID Delegated Form category '$category' successfully created$(if ($script:debugLogging -eq $true) { ": " + $tmpGuid })"
     }
 }
@@ -516,64 +493,10 @@ $delegatedFormRef = [PSCustomObject]@{guid = $null; created = $null}
 $delegatedFormName = @'
 AD Group - Manage memberships
 '@
-Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-users" -returnObject ([Ref]$delegatedFormRef) 
-<# End: Delegated Form #>
-
-<# Begin: Delegated Form Task #>
-if($delegatedFormRef.created -eq $true) { 
-	$tmpScript = @'
-HID-Write-Status -Message "Users to add: $usersToAdd" -Event Information
-HID-Write-Status -Message "Users to remove: $usersToRemove" -Event Information
-
-try{
-    $adGroup = Get-ADgroup -Filter { Name -eq $groupName }
-    HID-Write-Status -Message "Found AD group [$groupName]" -Event Information
-    HID-Write-Summary -Message "Found AD group [$groupName]" -Event Information
-}catch{
-    HID-Write-Status -Message "Could not find AD group [$groupName]. Error: $($_.Exception.Message)" -Event Error
-    HID-Write-Summary -Message "Failed to find AD group [$groupName]" -Event Failed
-}
-
-if($usersToAdd -ne "[]"){
-    try{
-        HID-Write-Status -Message "Starting to add AD group [$groupName] to AD users $usersToAdd" -Event Information
-        $usersToAddJson =  $usersToAdd | ConvertFrom-Json
-        
-        Add-ADGroupMember -Identity $adGroup -Members $usersToAddJson.sAMAccountName -Confirm:$false
-        HID-Write-Status -Message "Finished adding AD group [$groupName] to AD users $usersToAdd" -Event Success
-        HID-Write-Summary -Message "Successfully added AD group [$groupName] to AD users $usersToAdd" -Event Success
-    }catch{
-        HID-Write-Status -Message "Could not add AD group [$groupName] to AD users $usersToAdd. Error: $($_.Exception.Message)" -Event Error
-        HID-Write-Summary -Message "Failed to add AD group [$groupName] to AD users $usersToAdd" -Event Failed
-    }
-}
-
-
-if($usersToRemove -ne "[]"){
-    try{
-        HID-Write-Status -Message "Starting to remove AD group [$groupName] from AD users $usersToRemove" -Event Information
-        $usersToRemoveJson =  $usersToRemove | ConvertFrom-Json
-        
-        Remove-ADGroupMember -Identity $adGroup -Members $usersToRemoveJson.sAMAccountName -Confirm:$false
-        HID-Write-Status -Message "Finished removing AD group [$groupName] from AD users $usersToRemove" -Event Success
-        HID-Write-Summary -Message "Successfully removed AD group [$groupName] from AD users $usersToRemove" -Event Success
-    }catch{
-        HID-Write-Status -Message "Could not remove AD group [$groupName] from users $usersToRemove. Error: $($_.Exception.Message)" -Event Error
-        HID-Write-Summary -Message "Failed to remove AD group [$groupName] from users $usersToRemove" -Event Failed
-    }    
-}
-'@; 
-
-	$tmpVariables = @'
-[{"name":"groupName","value":"{{form.gridGroups.name}}","secret":false,"typeConstraint":"string"},{"name":"usersToAdd","value":"{{form.members.leftToRight.toJsonString}}","secret":false,"typeConstraint":"string"},{"name":"usersToRemove","value":"{{form.members.rightToLeft.toJsonString}}","secret":false,"typeConstraint":"string"}]
+$tmpTask = @'
+{"name":"AD Group - Manage memberships","script":"$groupName = $form.gridGroups.name\r\n$usersToAdd = $form.members.leftToRight\r\n$usersToRemove = $form.members.rightToLeft\r\n\r\ntry{\r\n    $adGroup = Get-ADgroup -Filter { Name -eq $groupName }\r\n    Write-Information \"Found AD group [$groupName]\"\r\n}catch{\r\n    Write-Error \"Could not find AD group [$groupName]. Error: $($_.Exception.Message)\"\r\n    throw \"Failed to find AD group [$groupName]\"\r\n}\r\n\r\nif($usersToAdd -ne $null){\r\n    try{\r\n        Write-Information \"Starting to add AD group [$groupName] to AD users $($usersToAdd | Out-String)\"\r\n        \r\n        $addMember = Add-ADGroupMember -Identity $adGroup -Members $usersToAdd.sAMAccountName -Confirm:$false\r\n        Write-Information \"Finished adding AD group [$groupName] to AD users  $($usersToAddJson.sAMAccountName)\"\r\n    }catch{\r\n        Write-Error \"Could not add AD group [$groupName] to AD users $($usersToAddJson.sAMAccountName). Error: $($_.Exception.Message)\"\r\n        throw \"Failed to add AD group [$groupName] to AD users  $($usersToAddJson.sAMAccountName)\"\r\n    }\r\n}\r\n\r\n\r\nif($usersToRemove -ne $null){\r\n    try{\r\n        Write-Information \"Starting to remove AD group [$groupName] from AD users $($usersToRemove | Out-String)\"\r\n        \r\n        $removeMember = Remove-ADGroupMember -Identity $adGroup -Members $usersToRemove.sAMAccountName -Confirm:$false\r\n        Write-Information \"Finished removing AD group [$groupName] from AD users $($usersToRemove.sAMAccountName)\"\r\n    }catch{\r\n        Write-Error \"Could not remove AD group [$groupName] from users $($usersToRemove.sAMAccountName). Error: $($_.Exception.Message)\"\r\n        throw \"Failed to remove AD group [$groupName] from users $($usersToRemove.sAMAccountName)\"\r\n    }    \r\n}","runInCloud":false}
 '@ 
 
-	$delegatedFormTaskGuid = [PSCustomObject]@{} 
-$delegatedFormTaskName = @'
-AD-group-update-members
-'@
-	Invoke-HelloIDAutomationTask -TaskName $delegatedFormTaskName -UseTemplate "False" -AutomationContainer "8" -Variables $tmpVariables -PowershellScript $tmpScript -ObjectGuid $delegatedFormRef.guid -ForceCreateTask $true -returnObject ([Ref]$delegatedFormTaskGuid) 
-} else {
-	Write-Warning "Delegated form '$delegatedFormName' already exists. Nothing to do with the Delegated Form task..." 
-}
-<# End: Delegated Form Task #>
+Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-users" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 
+<# End: Delegated Form #>
+
