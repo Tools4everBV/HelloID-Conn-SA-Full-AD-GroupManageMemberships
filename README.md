@@ -8,6 +8,7 @@ This HelloID Service Automation Delegated Form provides AD group membership mana
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
+| 1.1.1   | Updated with audit logging | 2022/06/08  |
 | 1.1.0   | Updated with code for SA agent | 2022/03/14  |
 | 1.0.1   | Added version number and updated all-in-one script | 2021/11/03  |
 | 1.0.0   | Initial release | 2020/09/07  |

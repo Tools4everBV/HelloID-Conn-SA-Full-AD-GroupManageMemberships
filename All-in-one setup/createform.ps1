@@ -1,12 +1,13 @@
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+
 #HelloID variables
 #Note: when running this script inside HelloID; portalUrl and API credentials are provided automatically (generate and save API credentials first in your admin panel!)
 $portalUrl = "https://CUSTOMER.helloid.com"
 $apiKey = "API_KEY"
 $apiSecret = "API_SECRET"
-$delegatedFormAccessGroupNames = @("Users") #Only unique names are supported. Groups must exist!
-$delegatedFormCategories = @("Group Management","Active Directory") #Only unique names are supported. Categories will be created if not exists
+$delegatedFormAccessGroupNames = @("") #Only unique names are supported. Groups must exist!
+$delegatedFormCategories = @("","") #Only unique names are supported. Categories will be created if not exists
 $script:debugLogging = $false #Default value: $false. If $true, the HelloID resource GUIDs will be shown in the logging
 $script:duplicateForm = $false #Default value: $false. If $true, the HelloID resource names will be changed to import a duplicate Form
 $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID resource names to generate a duplicate form with different resource names
@@ -20,7 +21,7 @@ $tmpName = @'
 ADgroupsSearchOU
 '@ 
 $tmpValue = @'
-[{ "OU": "OU=Groups,OU=Resources,DC=schoulens,DC=nl"}]
+[{ "OU": "OU=Groups,OU=Resources,DC=enyoi,DC=nl"}]
 '@ 
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
@@ -29,13 +30,14 @@ $tmpName = @'
 ADusersSearchOU
 '@ 
 $tmpValue = @'
-[{ "OU": "OU=Disabled Users,OU=Users,OU=Resources,DC=schoulens,DC=nl"},{ "OU": "OU=Users,OU=Resources,DC=schoulens,DC=nl"}]
+[{ "OU": "OU=Users,OU=Resources,DC=enyoi,DC=nl"}]
 '@ 
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
 
 #make sure write-information logging is visual
 $InformationPreference = "continue"
+
 # Check for prefilled API Authorization header
 if (-not [string]::IsNullOrEmpty($portalApiBasic)) {
     $script:headers = @{"authorization" = $portalApiBasic}
@@ -49,6 +51,7 @@ if (-not [string]::IsNullOrEmpty($portalApiBasic)) {
     $script:headers = @{"authorization" = $Key}
     Write-Information "Using manual API credentials"
 }
+
 # Check for prefilled PortalBaseURL
 if (-not [string]::IsNullOrEmpty($portalBaseUrl)) {
     $script:PortalBaseUrl = $portalBaseUrl
@@ -57,8 +60,10 @@ if (-not [string]::IsNullOrEmpty($portalBaseUrl)) {
     $script:PortalBaseUrl = $portalUrl
     Write-Information "Using manual PortalURL: $script:PortalBaseUrl"
 }
+
 # Define specific endpoint URI
 $script:PortalBaseUrl = $script:PortalBaseUrl.trim("/") + "/"  
+
 # Make sure to reveive an empty array using PowerShell Core
 function ConvertFrom-Json-WithEmptyArray([string]$jsonString) {
     # Running in PowerShell Core?
@@ -70,13 +75,16 @@ function ConvertFrom-Json-WithEmptyArray([string]$jsonString) {
         return ,$r  # Force return value to be an array using a comma
     }
 }
+
 function Invoke-HelloIDGlobalVariable {
     param(
         [parameter(Mandatory)][String]$Name,
         [parameter(Mandatory)][String][AllowEmptyString()]$Value,
         [parameter(Mandatory)][String]$Secret
     )
+
     $Name = $Name + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
+
     try {
         $uri = ($script:PortalBaseUrl + "api/v1/automation/variables/named/$Name")
         $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
@@ -89,11 +97,12 @@ function Invoke-HelloIDGlobalVariable {
                 secret   = $Secret;
                 ItemType = 0;
             }    
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
     
             $uri = ($script:PortalBaseUrl + "api/v1/automation/variable")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
             $variableGuid = $response.automationVariableGuid
+
             Write-Information "Variable '$Name' created$(if ($script:debugLogging -eq $true) { ": " + $variableGuid })"
         } else {
             $variableGuid = $response.automationVariableGuid
@@ -103,6 +112,7 @@ function Invoke-HelloIDGlobalVariable {
         Write-Error "Variable '$Name', message: $_"
     }
 }
+
 function Invoke-HelloIDAutomationTask {
     param(
         [parameter(Mandatory)][String]$TaskName,
@@ -116,6 +126,7 @@ function Invoke-HelloIDAutomationTask {
     )
     
     $TaskName = $TaskName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
+
     try {
         $uri = ($script:PortalBaseUrl +"api/v1/automationtasks?search=$TaskName&container=$AutomationContainer")
         $responseRaw = (Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false) 
@@ -123,6 +134,7 @@ function Invoke-HelloIDAutomationTask {
     
         if([string]::IsNullOrEmpty($response.automationTaskGuid) -or $ForceCreateTask -eq $true) {
             #Create Task
+
             $body = @{
                 name                = $TaskName;
                 useTemplate         = $UseTemplate;
@@ -131,11 +143,12 @@ function Invoke-HelloIDAutomationTask {
                 objectGuid          = $ObjectGuid;
                 variables           = (ConvertFrom-Json-WithEmptyArray($Variables));
             }
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
     
             $uri = ($script:PortalBaseUrl +"api/v1/automationtasks/powershell")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
             $taskGuid = $response.automationTaskGuid
+
             Write-Information "Powershell task '$TaskName' created$(if ($script:debugLogging -eq $true) { ": " + $taskGuid })"
         } else {
             #Get TaskGUID
@@ -145,8 +158,10 @@ function Invoke-HelloIDAutomationTask {
     } catch {
         Write-Error "Powershell task '$TaskName', message: $_"
     }
+
     $returnObject.Value = $taskGuid
 }
+
 function Invoke-HelloIDDatasource {
     param(
         [parameter(Mandatory)][String]$DatasourceName,
@@ -158,7 +173,9 @@ function Invoke-HelloIDDatasource {
         [parameter()][String][AllowEmptyString()]$AutomationTaskGuid,
         [parameter(Mandatory)][Ref]$returnObject
     )
+
     $DatasourceName = $DatasourceName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
+
     $datasourceTypeName = switch($DatasourceType) { 
         "1" { "Native data source"; break} 
         "2" { "Static data source"; break} 
@@ -181,7 +198,7 @@ function Invoke-HelloIDDatasource {
                 script             = $DatasourcePsScript;
                 input              = (ConvertFrom-Json-WithEmptyArray($DatasourceInput));
             }
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
       
             $uri = ($script:PortalBaseUrl +"api/v1/datasource")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -196,8 +213,10 @@ function Invoke-HelloIDDatasource {
     } catch {
       Write-Error "$datasourceTypeName '$DatasourceName', message: $_"
     }
+
     $returnObject.Value = $datasourceGuid
 }
+
 function Invoke-HelloIDDynamicForm {
     param(
         [parameter(Mandatory)][String]$FormName,
@@ -206,6 +225,7 @@ function Invoke-HelloIDDynamicForm {
     )
     
     $FormName = $FormName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
+
     try {
         try {
             $uri = ($script:PortalBaseUrl +"api/v1/forms/$FormName")
@@ -234,8 +254,11 @@ function Invoke-HelloIDDynamicForm {
     } catch {
         Write-Error "Dynamic form '$FormName', message: $_"
     }
+
     $returnObject.Value = $formGuid
 }
+
+
 function Invoke-HelloIDDelegatedForm {
     param(
         [parameter(Mandatory)][String]$DelegatedFormName,
@@ -249,6 +272,7 @@ function Invoke-HelloIDDelegatedForm {
     )
     $delegatedFormCreated = $false
     $DelegatedFormName = $DelegatedFormName + $(if ($script:duplicateForm -eq $true) { $script:duplicateFormSuffix })
+
     try {
         try {
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms/$DelegatedFormName")
@@ -268,7 +292,7 @@ function Invoke-HelloIDDelegatedForm {
                 faIcon          = $FaIcon;
                 task            = ConvertFrom-Json -inputObject $task;
             }    
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
     
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -276,6 +300,7 @@ function Invoke-HelloIDDelegatedForm {
             $delegatedFormGuid = $response.delegatedFormGUID
             Write-Information "Delegated form '$DelegatedFormName' created$(if ($script:debugLogging -eq $true) { ": " + $delegatedFormGuid })"
             $delegatedFormCreated = $true
+
             $bodyCategories = $Categories
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms/$delegatedFormGuid/categories")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $bodyCategories
@@ -288,9 +313,11 @@ function Invoke-HelloIDDelegatedForm {
     } catch {
         Write-Error "Delegated form '$DelegatedFormName', message: $_"
     }
+
     $returnObject.value.guid = $delegatedFormGuid
     $returnObject.value.created = $delegatedFormCreated
 }
+
 
 <# Begin: HelloID Global Variables #>
 foreach ($item in $globalHelloIDVariables) {
@@ -462,7 +489,8 @@ foreach($group in $delegatedFormAccessGroupNames) {
         Write-Error "HelloID (access)group '$group', message: $_"
     }
 }
-$delegatedFormAccessGroupGuids = ($delegatedFormAccessGroupGuids | Select-Object -Unique | ConvertTo-Json -Compress)
+$delegatedFormAccessGroupGuids = ($delegatedFormAccessGroupGuids | Select-Object -Unique | ConvertTo-Json -Depth 100 -Compress)
+
 $delegatedFormCategoryGuids = @()
 foreach($category in $delegatedFormCategories) {
     try {
@@ -477,15 +505,17 @@ foreach($category in $delegatedFormCategories) {
         $body = @{
             name = @{"en" = $category};
         }
-        $body = ConvertTo-Json -InputObject $body
+        $body = ConvertTo-Json -InputObject $body -Depth 100
+
         $uri = ($script:PortalBaseUrl +"api/v1/delegatedformcategories")
         $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
         $tmpGuid = $response.delegatedFormCategoryGuid
         $delegatedFormCategoryGuids += $tmpGuid
+
         Write-Information "HelloID Delegated Form category '$category' successfully created$(if ($script:debugLogging -eq $true) { ": " + $tmpGuid })"
     }
 }
-$delegatedFormCategoryGuids = (ConvertTo-Json -InputObject $delegatedFormCategoryGuids -Compress)
+$delegatedFormCategoryGuids = (ConvertTo-Json -InputObject $delegatedFormCategoryGuids -Depth 100 -Compress)
 <# End: Delegated Form Access Groups and Categories #>
 
 <# Begin: Delegated Form #>
@@ -494,7 +524,7 @@ $delegatedFormName = @'
 AD Group - Manage memberships
 '@
 $tmpTask = @'
-{"name":"AD Group - Manage memberships","script":"$groupName = $form.gridGroups.name\r\n$usersToAdd = $form.members.leftToRight\r\n$usersToRemove = $form.members.rightToLeft\r\n\r\ntry{\r\n    $adGroup = Get-ADgroup -Filter { Name -eq $groupName }\r\n    Write-Information \"Found AD group [$groupName]\"\r\n}catch{\r\n    Write-Error \"Could not find AD group [$groupName]. Error: $($_.Exception.Message)\"\r\n    throw \"Failed to find AD group [$groupName]\"\r\n}\r\n\r\nif($usersToAdd -ne $null){\r\n    try{\r\n        Write-Information \"Starting to add AD group [$groupName] to AD users $($usersToAdd | Out-String)\"\r\n        \r\n        $addMember = Add-ADGroupMember -Identity $adGroup -Members $usersToAdd.sAMAccountName -Confirm:$false\r\n        Write-Information \"Finished adding AD group [$groupName] to AD users  $($usersToAddJson.sAMAccountName)\"\r\n    }catch{\r\n        Write-Error \"Could not add AD group [$groupName] to AD users $($usersToAddJson.sAMAccountName). Error: $($_.Exception.Message)\"\r\n        throw \"Failed to add AD group [$groupName] to AD users  $($usersToAddJson.sAMAccountName)\"\r\n    }\r\n}\r\n\r\n\r\nif($usersToRemove -ne $null){\r\n    try{\r\n        Write-Information \"Starting to remove AD group [$groupName] from AD users $($usersToRemove | Out-String)\"\r\n        \r\n        $removeMember = Remove-ADGroupMember -Identity $adGroup -Members $usersToRemove.sAMAccountName -Confirm:$false\r\n        Write-Information \"Finished removing AD group [$groupName] from AD users $($usersToRemove.sAMAccountName)\"\r\n    }catch{\r\n        Write-Error \"Could not remove AD group [$groupName] from users $($usersToRemove.sAMAccountName). Error: $($_.Exception.Message)\"\r\n        throw \"Failed to remove AD group [$groupName] from users $($usersToRemove.sAMAccountName)\"\r\n    }    \r\n}","runInCloud":false}
+{"name":"AD Group - Manage memberships","script":"$VerbosePreference = \"SilentlyContinue\"\r\n$InformationPreference = \"Continue\"\r\n$WarningPreference = \"Continue\"\r\n\r\n# variables configured in form\r\n$groupName = $form.gridGroups.name\r\n$usersToAdd = $form.members.leftToRight\r\n$usersToRemove = $form.members.rightToLeft\r\n\r\ntry{\r\n    $adGroup = Get-ADgroup $groupName\r\n    Write-Information \"Found AD group [$groupName]\"\r\n}catch{\r\n    Write-Error \"Could not find AD group [$groupName]. Error: $($_.Exception.Message)\"\r\n}\r\n\r\nif($usersToAdd -ne $null){\r\n    foreach($userToAdd in $usersToAdd){\r\n        try{\r\n            $adUser = Get-ADuser $userToAdd.sAMAccountName\r\n            \r\n            $adUserDisplayName = $adUser.DisplayName\r\n            $adUserSID = $([string]$adUser.SID)\r\n\r\n            $adGroupDisplayName = $adGroup.DisplayName\r\n            $adGroupSID = $([string]$adGroup.SID)\r\n\r\n            $addMember = Add-ADGroupMember -Identity $adGroup -Members $adUser.sAMAccountName -Confirm:$false\r\n            Write-Information \"Successfully added AD user $adUserDisplayName ($adUserSID) to group $adGroupDisplayName ($adGroupSID)\"\r\n\r\n            $Log = @{\r\n                Action            = \"GrantMembership\" # optional. ENUM (undefined = default) \r\n                System            = \"ActiveDirectory\" # optional (free format text) \r\n                Message           = \"Successfully added AD user $adUserDisplayName ($adUserSID) to group $adGroupDisplayName ($adGroupSID)\" # required (free format text) \r\n                IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n                TargetDisplayName = $groupName # optional (free format text)\r\n                TargetIdentifier  = $adGroupSID # optional (free format text)\r\n            }\r\n            #send result back  \r\n            Write-Information -Tags \"Audit\" -MessageData $log\r\n        }catch{\r\n            $adGroupSID = $([string]$adGroup.SID)\r\n            $Log = @{\r\n                Action            = \"GrantMembership\" # optional. ENUM (undefined = default) \r\n                System            = \"ActiveDirectory\" # optional (free format text) \r\n                Message           = \"Failed to add AD user $adUserDisplayName ($adUserSID) to group $adGroupDisplayName ($adGroupSID). Error: $($_.Exception.Message)\" # required (free format text) \r\n                IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n                TargetDisplayName = $groupName # optional (free format text)\r\n                TargetIdentifier  = $adGroupSID # optional (free format text)\r\n            }\r\n            #send result back  \r\n            Write-Information -Tags \"Audit\" -MessageData $log\r\n\r\n            Write-Error \"Could not add AD user $adUserDisplayName ($adUserSID) to group $adGroupDisplayName ($adGroupSID). Error: $($_.Exception.Message)\"            \r\n        }\r\n    }\r\n}\r\n\r\nif($usersToRemove -ne $null){\r\n    foreach($userToRemove in $usersToRemove){\r\n        try{\r\n            $adUser = Get-ADuser $userToRemove.sAMAccountName\r\n            \r\n            $adUserDisplayName = $adUser.DisplayName\r\n            $adUserSID = $([string]$adUser.SID)\r\n\r\n            $adGroupDisplayName = $adGroup.DisplayName\r\n            $adGroupSID = $([string]$adGroup.SID)\r\n\r\n            $addMember = Remove-ADGroupMember -Identity $adGroup -Members $adUser.sAMAccountName -Confirm:$false\r\n            Write-Information \"Successfully removed AD user $adUserDisplayName ($adUserSID) from group $adGroupDisplayName ($adGroupSID)\"\r\n\r\n            $Log = @{\r\n                Action            = \"RevokeMembership\" # optional. ENUM (undefined = default) \r\n                System            = \"ActiveDirectory\" # optional (free format text) \r\n                Message           = \"Successfully removed AD user $adUserDisplayName ($adUserSID) from group $adGroupDisplayName ($adGroupSID)\" # required (free format text) \r\n                IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n                TargetDisplayName = $groupName # optional (free format text)\r\n                TargetIdentifier  = $adGroupSID # optional (free format text)\r\n            }\r\n            #send result back  \r\n            Write-Information -Tags \"Audit\" -MessageData $log\r\n        }catch{\r\n            $adGroupSID = $([string]$adGroup.SID)\r\n            $Log = @{\r\n                Action            = \"RevokeMembership\" # optional. ENUM (undefined = default) \r\n                System            = \"ActiveDirectory\" # optional (free format text) \r\n                Message           = \"Failed to remove AD user $adUserDisplayName ($adUserSID) from group $adGroupDisplayName ($adGroupSID). Error: $($_.Exception.Message)\" # required (free format text) \r\n                IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n                TargetDisplayName = $groupName # optional (free format text)\r\n                TargetIdentifier  = $adGroupSID # optional (free format text)\r\n            }\r\n            #send result back  \r\n            Write-Information -Tags \"Audit\" -MessageData $log\r\n\r\n            Write-Error \"Could not add AD user $adUserDisplayName ($adUserSID) from group $adGroupDisplayName ($adGroupSID). Error: $($_.Exception.Message)\"\r\n        }\r\n    }\r\n}","runInCloud":false}
 '@ 
 
 Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-users" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 
